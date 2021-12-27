@@ -1,13 +1,25 @@
 #
 # This helper is for templates building the linux kernel.
 #
+# Mandatory variables:
+#
+# - kernel_arch - the target kernel arch (e.g. arm64)
+#
+# Optional variables:
+#
+# - kernel_config_target
+# - kernel_version - overwrite in case internal kernel version differs from package's
+# - configure_args
+# - make_build_args
+# - make_install_args
+#
 
 do_configure() {
-	cross=
+	local cross=
 	[ -n "$CROSS_BUILD" ] && cross="CROSS_COMPILE=${XBPS_CROSS_TRIPLET}-"
 
 	if [ -n "$kernel_config_target" ]; then
-		msg_normal "Config target: '$kernel_config_target'.\n"
+		msg_normal "Using provided config target: '$kernel_config_target'.\n"
 	elif [ -f ./.config ]; then
 		msg_normal "Found .config, using 'oldconfig'.\n"
 		kernel_config_target=oldconfig
@@ -23,16 +35,14 @@ do_configure() {
 	# Always use our revision to CONFIG_LOCALVERSION to match our pkg version.
 	sed -i -e "s|^\(CONFIG_LOCALVERSION=\).*|\1\"_${revision}\"|" .config
 
-	make $makejobs ARCH=$kernel_arch $cross $kernel_config_target
+	make $makejobs ARCH=$kernel_arch $configure_args $cross $kernel_config_target
 }
 
 do_build() {
-	cross=
+	local cross=
 	[ -n "$CROSS_BUILD" ] && cross="CROSS_COMPILE=${XBPS_CROSS_TRIPLET}-"
 
-	extraversion=
-	[ -n "$kernel_patchver" ] && extraversion="EXTRAVERSION=${kernel_patchver}"
-
+	local target=
 	case "$kernel_arch" in
 		arm) target="zImage modules dtbs";;
 		arm64) target="Image modules dtbs";;
@@ -42,8 +52,8 @@ do_build() {
 	esac
 
 	export LDFLAGS= #FIXME: is this still needed? maybe some arch only?
-	make $makejobs ARCH=$kernel_arch $cross $extraversion prepare
-	make $makejobs ARCH=$kernel_arch $cross $extraversion $target
+	make $makejobs ARCH=$kernel_arch $make_build_args $cross $kernel_extraversion prepare
+	make $makejobs ARCH=$kernel_arch $make_build_args $cross $kernel_extraversion $target
 }
 
 do_check() {
@@ -55,10 +65,8 @@ do_check() {
 do_install() {
 	: ${kernel_version:="${version}_${revision}"}
 
-	cross=
+	local cross=
 	[ -n "$CROSS_BUILD" ] && cross="CROSS_COMPILE=${XBPS_CROSS_TRIPLET}-"
-
-	hdrdest=${DESTDIR}/usr/src/kernel-headers-${kernel_version}
 
 	# Install kernel, firmware and modules
 	make ${makejobs} ARCH=${kernel_subarch:-$kernel_arch} INSTALL_MOD_PATH=${DESTDIR} ${_cross} modules_install
@@ -92,7 +100,9 @@ do_install() {
 	# Run depmod after compressing modules.
 	vsed -i '2iexit 0' scripts/depmod.sh
 
-	### HEADERS ??
+
+	### HEADERS
+	hdrdest=${DESTDIR}/usr/src/kernel-headers-${kernel_version}
 
 	# Switch to /usr.
 	vmkdir usr

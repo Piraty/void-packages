@@ -46,11 +46,8 @@ export KBUILD_BUILD_TIMESTAMP=${SOURCE_DATE_EPOCH:-0}
 export KBUILD_BUILD_USER=voidlinux
 export KBUILD_BUILD_HOST=voidlinux
 
-if [ "$CROSS_BUILD" ]; then
-	_cross="CROSS_COMPILE=${XBPS_CROSS_TRIPLET}-"
-fi
 if [ "${_patchver}" ]; then
-	_version="EXTRAVERSION=${_patchver}"
+	make_build_args="EXTRAVERSION=${_patchver}"
 fi
 
 post_extract() {
@@ -67,9 +64,8 @@ post_patch() {
 }
 
 pre_configure() {
-	# If there's a file called <arch>-dotconfig, use it to
-	# configure the kernel; otherwise use arch defaults and all stuff
-	# as modules (allmodconfig).
+	# If there's a file called <arch>-dotconfig, use it to configure the kernel;
+	# otherwise use arch defaults and all stuff as modules (allmodconfig).
 	if [ -f ${FILESDIR}/${kernel_subarch:-$kernel_arch}-dotconfig-custom ]; then
 		msg_normal "Detected a custom .config file for your arch, using it.\n"
 		cp -f ${FILESDIR}/${kernel_subarch:-$kernel_arch}-dotconfig-custom .config
